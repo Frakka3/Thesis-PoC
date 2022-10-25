@@ -1,14 +1,15 @@
-import { useState } from "react";
+import { Dispatch, SetStateAction, useState } from "react";
 import { PermissionsAndroid, Platform } from "react-native"
-import { BleError, BleManager, Characteristic, Device } from "react-native-ble-plx";
+import base64 from "react-native-base64";
+import { Base64, BleError, BleManager, Characteristic, Device } from "react-native-ble-plx";
 
 type PermissionCallback = (result:boolean) => void
 
 const bleManager = new BleManager();
 
 const MICROCONTROLLER_UUID = '6E400001-B5A3-F393-E0A9-E50E24DCCA9E';
-const MICROCONTROLLER_RX = '6E400002-B5A3-F393-E0A9-E50E24DCCA9E'; 
-const MICROCONTROLLER_TX = '6E400002-B5A3-F393-E0A9-E50E24DCCA9E'; 
+const MICROCONTROLLER_RX = '6E400002-B5A3-F393-E0A9-E50E24DCCA9E';
+const MICROCONTROLLER_TX = '6E400003-B5A3-F393-E0A9-E50E24DCCA9E'; 
 
 interface BluetoothLowEnergyApi {
   requestPermissions(callback: PermissionCallback): Promise<void>;
@@ -16,14 +17,25 @@ interface BluetoothLowEnergyApi {
   disconnectFromDevice: () => void;
   scanForDevices(): void;
   connectedDevice: Device|null;
-  receivedData: number;
+  initialDelay: number;
+  stimulationTime: number;
+  restTime: number;
+  stimulationStrength: number;
+  setInitialDelay: Dispatch<SetStateAction<number>>;
+  setStimulationTime: Dispatch<SetStateAction<number>>;
+  setRestTime: Dispatch<SetStateAction<number>>;
+  setStimulationStrength: Dispatch<SetStateAction<number>>;
+  sendData(device: Device, message:Base64): Promise<void>;
   allDevices: Device[];
 }
 
 export default function useBLE(): BluetoothLowEnergyApi {
   const [allDevices, setAllDevices] = useState<Device[]>([]);
   const [connectedDevice, setConnectedDevice] = useState<Device | null>(null);
-  const [receivedData, setReceivedData] = useState<number>(0);
+  const [initialDelay, setInitialDelay] = useState<number>(0);
+  const [stimulationTime, setStimulationTime] = useState<number>(250);
+  const [restTime, setRestTime] = useState<number>(750);
+  const [stimulationStrength, setStimulationStrength] = useState<number>(100);
 
   const requestPermissions = async(callback: PermissionCallback) => {
     if (Platform.OS === 'android') {
@@ -50,7 +62,7 @@ export default function useBLE(): BluetoothLowEnergyApi {
       if (error) {
         console.log(error);
       }
-      if (device && device.name?.includes('nrf')) {
+      if (device && device.name?.includes('UART')) {
         setAllDevices((prevState) => {
           if (!isDuplicate(prevState, device)) {
             return[...prevState, device];
@@ -65,9 +77,9 @@ export default function useBLE(): BluetoothLowEnergyApi {
     try {
       const deviceConnection = await bleManager.connectToDevice(device.id);
       setConnectedDevice(deviceConnection);
-      bleManager.stopDeviceScan();
       await deviceConnection.discoverAllServicesAndCharacteristics();
-      streamData(device);
+      bleManager.stopDeviceScan();
+      streamData(deviceConnection);
     } catch (e) {
       console.log("Error when connecting to device", e);
     }
@@ -77,17 +89,24 @@ export default function useBLE(): BluetoothLowEnergyApi {
     if (connectedDevice) {
       bleManager.cancelDeviceConnection(connectedDevice.id);
       setConnectedDevice(null);
-      setReceivedData(0);
     }
   };
   
   const streamData = async(device:Device) => {
     if (device) {
-      device.monitorCharacteristicForService(MICROCONTROLLER_UUID, MICROCONTROLLER_RX, () => {});
+      device.monitorCharacteristicForService(MICROCONTROLLER_UUID, MICROCONTROLLER_TX, (error, characteristic) => onDataUpdate(error, characteristic),);
     } else {
       console.log("No device connected");
     }
   };
+  
+  const sendData = async(device:Device, message: Base64) => {
+    if (device) {
+      device.writeCharacteristicWithoutResponseForService(MICROCONTROLLER_UUID, MICROCONTROLLER_RX, message)
+    } else {
+      console.log("No device connected");
+    }
+  }
   
   const onDataUpdate = (
   error: BleError | null, 
@@ -95,10 +114,26 @@ export default function useBLE(): BluetoothLowEnergyApi {
   ) => {
     if (error) {
       console.error(error);
-      return;
+      return -1;
     } else if (!characteristic?.value) {
-      console.error("No Characteristic Found");
+      console.error("No data was received");
+      return -1;
+    } 
+    var ret = base64.decode(characteristic.value).trim();
+    if (ret.slice(-1) != '.') {
+      console.log('Bad request received ' + ret);
+      return -1;
+    } 
+    ret = ret.slice(0, -1);
+    var values = ret.split(' ');
+    if (values.length != 4) {
+      console.log('Request missing values ' + ret);
+      return -1;
     }
+    setInitialDelay(+values[0]);
+    setStimulationTime(+values[1]);
+    setRestTime(+values[2]);
+    setStimulationStrength(+values[3]);
   } 
   
   return {
@@ -107,7 +142,15 @@ export default function useBLE(): BluetoothLowEnergyApi {
     disconnectFromDevice,
     scanForDevices,
     connectedDevice,
-    receivedData,
+    initialDelay,
+    stimulationTime,
+    restTime,
+    stimulationStrength,
+    setInitialDelay,
+    setStimulationTime,
+    setRestTime,
+    setStimulationStrength,
+    sendData,
     allDevices,
   }
 }

@@ -1,11 +1,19 @@
 import React, {useState} from 'react';
 import {
+  Alert,
+  Button,
   SafeAreaView,
+  ScrollView,
+  StatusBar,
   StyleSheet,
   Text,
+  TextInput,
+  Touchable,
   TouchableOpacity,
   View,
 } from 'react-native';
+import base64 from 'react-native-base64';
+import { CountdownCircleTimer } from 'react-native-countdown-circle-timer';
 import DeviceModal from './deviceConnectionModal';
 import useBLE from './useBLE';
 
@@ -16,10 +24,22 @@ const App = () => {
     allDevices,
     connectToDevice,
     connectedDevice,
-    receivedData,
+    initialDelay,
+    stimulationTime,
+    restTime,
+    stimulationStrength,
+    setInitialDelay,
+    setStimulationTime,
+    setRestTime,
+    setStimulationStrength,
+    sendData,
     disconnectFromDevice,
   } = useBLE();
   const [isModalVisible, setIsModalVisible] = useState<boolean>(false);
+  const [dataToSend, changeValueToSend] = useState<string>("");
+  const [totalTime, setTotalTime] = useState<number>(60);
+  const [exerciseState, setExerciseState] = useState<boolean>(false);
+  const [key, setKey] = useState<number>(0);
 
   const scanForPeripherals = () => {
     requestPermissions(isGranted => {
@@ -34,21 +54,89 @@ const App = () => {
   };
 
   const openModal = async () => {
-    scanForDevices();
+    scanForPeripherals();
     setIsModalVisible(true);
   };
-
+  
+  const changeSimulationStrength = (strength: number) => {
+    if (strength <= 100) {
+      setStimulationStrength(strength);
+    } else {
+      Alert.alert('Strength must be less than or equal to 100');
+    }
+  }
+  
+  const createSettingsString = (iD:number, sT: number, rT: number, sS: number) => {
+    const fin = String(iD) + " " + String(sT) + " " + String(rT) + " " + String(sS) + ".";
+    return fin;
+  }
+  
+  const handleExercise = () => {
+    if (connectedDevice != null) {
+      if (exerciseState) {
+        sendData(connectedDevice, base64.encode("s."));
+        setExerciseState(false);
+      } else {
+        sendData(connectedDevice, base64.encode("p."));
+        setExerciseState(true);
+      } 
+    } else {
+      console.log('Device is not connected');
+    }
+  }
+ 
   return (
     <SafeAreaView style={styles.container}>
+    <ScrollView>
       <View style={styles.heartRateTitleWrapper}>
         {connectedDevice ? (
           <>
-            <Text style={styles.heartRateTitleText}>Your Heart Rate Is:</Text>
-            <Text style={styles.heartRateText}>{receivedData} bpm</Text>
+            <Text style = {styles.heartRateTitleText}>Walking Exercise PoC</Text>
+            <View style = {styles.settingRows}>
+              <View style = {styles.settingDivs}>
+                <Text style={styles.SettingText}>Current initial delay(ms):</Text>
+                <TextInput style = {styles.settingInput} keyboardType = 'numeric' onChangeText = {text => setInitialDelay(+text)} value = {String(initialDelay)} />
+              </View>
+              <View style = {styles.settingDivs}>
+              <Text style={styles.SettingText}>Current stimulation time(ms):</Text>
+              <TextInput style = {styles.settingInput} keyboardType = 'numeric' onChangeText = {text => setStimulationTime(+text)} value = {String(stimulationTime)} />
+              </View>
+              <View style = {styles.settingDivs}>
+              <Text style={styles.SettingText}>Current rest time(ms):</Text>
+              <TextInput style = {styles.settingInput} keyboardType = 'numeric' onChangeText = {text => setRestTime(+text)} value = {String(restTime)} />
+              </View>
+              <View style = {styles.settingDivs}>
+              <Text style={styles.SettingText}>Current stimulation strength(%):</Text>
+              <TextInput style = {styles.settingInput} keyboardType = 'numeric' maxLength = {3} onChangeText = {text => changeSimulationStrength(+text)} value = {String(stimulationStrength)} />
+              </View>
+            </View>
+            <TouchableOpacity style = {styles.ctaButton} disabled = {exerciseState} onPress = {() => sendData(connectedDevice, base64.encode(createSettingsString(initialDelay, stimulationTime, restTime, stimulationStrength)))}>
+            <Text style = {styles.ctaButtonText}>
+              {'Update Setings'}
+            </Text>
+            </TouchableOpacity>
+            <Text style = {styles.heartRateTitleText}>
+              {exerciseState? 'Please set total time while exercise is not running' : 'Set exercise time'}
+            </Text>
+            <TextInput style = {styles.input} keyboardType = 'numeric' editable = {!exerciseState} onChangeText = {text => setTotalTime(+text)} value = {String(totalTime)} />
+            <TouchableOpacity disabled = {exerciseState} onPress = {() => setKey(prevKey => prevKey + 1)} style = {styles.ctaButton}>
+            <Text style = {styles.ctaButtonText}>
+              {exerciseState? 'Pause exercise to reset timer' : 'Reset timer'}
+            </Text>
+            </TouchableOpacity>
+            <Text style={styles.heartRateTitleText}>Walking Exercise Timer</Text>
+            <CountdownCircleTimer isPlaying={exerciseState} colors={['#004777', '#F7B801', '#A30000', '#A30000']} colorsTime = {[60, 45, 30, 15]} key = {key} duration = {totalTime} onComplete = {() => {handleExercise(); setKey(prevKey => prevKey + 1)}}>
+            {({ remainingTime }) => <Text>{remainingTime} seconds</Text>}
+            </CountdownCircleTimer>
+            <TouchableOpacity onPress = {handleExercise} style = {styles.ctaButton}>
+            <Text style = {styles.ctaButtonText}>
+              {exerciseState? 'Pause Exercise' : 'Start Exercise'}
+            </Text>
+            </TouchableOpacity>
           </>
         ) : (
           <Text style={styles.heartRateTitleText}>
-            Please Connect to a Heart Rate Monitor
+            Please Connect to a bluetooth device
           </Text>
         )}
       </View>
@@ -56,7 +144,7 @@ const App = () => {
         onPress={connectedDevice ? disconnectFromDevice : openModal}
         style={styles.ctaButton}>
         <Text style={styles.ctaButtonText}>
-          {connectedDevice ? 'Disconnect' : 'Connect'}
+          {connectedDevice ? 'Disconnect' : 'Connect to bluetooth device'}
         </Text>
       </TouchableOpacity>
       <DeviceModal
@@ -65,6 +153,7 @@ const App = () => {
         connectToPeripheral={connectToDevice}
         devices={allDevices}
       />
+      </ScrollView>
     </SafeAreaView>
   );
 };
@@ -73,6 +162,7 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#f2f2f2',
+    paddingTop: StatusBar.currentHeight,
   },
   heartRateTitleWrapper: {
     flex: 1,
@@ -84,26 +174,54 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     textAlign: 'center',
     marginHorizontal: 20,
+    marginVertical: 20,
     color: 'black',
   },
-  heartRateText: {
-    fontSize: 25,
+  SettingText: {
+    fontSize: 14,
     marginTop: 15,
+    marginLeft: 15
   },
   ctaButton: {
-    backgroundColor: 'purple',
+    backgroundColor: 'powderblue',
     justifyContent: 'center',
     alignItems: 'center',
-    height: 50,
+    height: 60,
     marginHorizontal: 20,
     marginBottom: 5,
     borderRadius: 8,
+    padding: 15
   },
   ctaButtonText: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: 'white',
+    color: 'black',
   },
+  settingInput: {
+    height: 40,
+    width: '80%',
+    margin: 12,
+    borderWidth: 1,
+    padding: 10,
+    textAlign: 'center'
+  },
+  input: {
+    height: 40,
+    width: '50%',
+    margin: 12,
+    borderWidth: 1,
+    padding: 10,
+    textAlign: 'center'
+  },
+  settingRows: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+  }, 
+  settingDivs: {
+    width: '50%',
+    height: '40%',
+    alignItems: 'center'
+  }
 });
 
 export default App;
