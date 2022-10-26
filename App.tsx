@@ -14,6 +14,7 @@ import {
 } from 'react-native';
 import base64 from 'react-native-base64';
 import { CountdownCircleTimer } from 'react-native-countdown-circle-timer';
+import Sound from 'react-native-sound';
 import DeviceModal from './deviceConnectionModal';
 import useBLE from './useBLE';
 
@@ -40,6 +41,7 @@ const App = () => {
   const [totalTime, setTotalTime] = useState<number>(60);
   const [exerciseState, setExerciseState] = useState<boolean>(false);
   const [key, setKey] = useState<number>(0);
+  const [timer, setTimer] = useState<number>();
 
   const scanForPeripherals = () => {
     requestPermissions(isGranted => {
@@ -71,14 +73,29 @@ const App = () => {
     return fin;
   }
   
+  const tick = new Sound('tick.mp3', Sound.MAIN_BUNDLE, (error: any) => {
+    if (error) {
+      console.log('failed to load the sound', error);
+      return;
+    }
+    console.log('Sound was loaded');
+  })
+  
+  const playTick = () => {
+    tick.play();
+  }
+  
   const handleExercise = () => {
     if (connectedDevice != null) {
       if (exerciseState) {
         sendData(connectedDevice, base64.encode("s."));
         setExerciseState(false);
+        if (timer != null) clearInterval(timer);
       } else {
         sendData(connectedDevice, base64.encode("p."));
         setExerciseState(true);
+        var newTimer = setInterval(playTick, restTime);
+        setTimer(newTimer);
       } 
     } else {
       console.log('Device is not connected');
