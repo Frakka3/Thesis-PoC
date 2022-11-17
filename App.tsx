@@ -1,3 +1,6 @@
+/** Core proof of concept application which connects to a serial device over BLE to transmit and receive data
+Implements a walking exercise which interacts with the hardware device
+*/
 import React, {useState} from 'react';
 import {
   Alert,
@@ -43,6 +46,7 @@ const App = () => {
   const [key, setKey] = useState<number>(0);
   const [timer, setTimer] = useState<number>();
 
+  //Helper function which finds local BLE devices
   const scanForPeripherals = () => {
     requestPermissions(isGranted => {
       if (isGranted) {
@@ -51,15 +55,18 @@ const App = () => {
     });
   };
 
+  //Helper function to hide modal once device has been connected
   const hideModal = () => {
     setIsModalVisible(false);
   };
 
+  //Helper function to show modal if no device is currently connected
   const openModal = async () => {
     scanForPeripherals();
     setIsModalVisible(true);
   };
   
+  //Helper function to set the stimulation strength setting of the exercise
   const changeSimulationStrength = (strength: number) => {
     if (strength <= 100) {
       setStimulationStrength(strength);
@@ -68,11 +75,13 @@ const App = () => {
     }
   }
   
+  //Helper function to change the settings values into the required string format
   const createSettingsString = (iD:number, sT: number, rT: number, sS: number) => {
     const fin = String(iD) + " " + String(sT) + " " + String(rT) + " " + String(sS) + ".";
     return fin;
   }
   
+  //Helper function to load the metronome ticking sound
   const tick = new Sound('tick.mp3', Sound.MAIN_BUNDLE, (error: any) => {
     if (error) {
       console.log('failed to load the sound', error);
@@ -81,17 +90,19 @@ const App = () => {
     console.log('Sound was loaded');
   })
   
+  //Helper function to play the loaded metronome sound
   const playTick = () => {
     tick.play();
   }
   
+  //Function to control the exercise
   const handleExercise = () => {
     if (connectedDevice != null) {
-      if (exerciseState) {
+      if (exerciseState) { //Sends S. when exercise is paused, pauses timer and stops playing the sound
         sendData(connectedDevice, base64.encode("s."));
         setExerciseState(false);
         if (timer != null) clearInterval(timer);
-      } else {
+      } else { //Sends P. when exercise is started, starts timer and starts playing the sound
         sendData(connectedDevice, base64.encode("p."));
         setExerciseState(true);
         var newTimer = setInterval(playTick, restTime);
@@ -105,62 +116,62 @@ const App = () => {
   return (
     <SafeAreaView style={styles.container}>
     <ScrollView>
-      <View style={styles.heartRateTitleWrapper}>
+      <View style={styles.appWrapper}>
         {connectedDevice ? (
           <>
-            <Text style = {styles.heartRateTitleText}>Walking Exercise PoC</Text>
+            <Text style = {styles.titleText}>Walking Exercise PoC</Text>
             <View style = {styles.settingRows}>
               <View style = {styles.settingDivs}>
-                <Text style={styles.SettingText}>Current initial delay(ms):</Text>
+                <Text style={styles.settingText}>Current initial delay(ms):</Text>
                 <TextInput style = {styles.settingInput} keyboardType = 'numeric' onChangeText = {text => setInitialDelay(+text)} value = {String(initialDelay)} />
               </View>
               <View style = {styles.settingDivs}>
-              <Text style={styles.SettingText}>Current stimulation time(ms):</Text>
+              <Text style={styles.settingText}>Current stimulation time(ms):</Text>
               <TextInput style = {styles.settingInput} keyboardType = 'numeric' onChangeText = {text => setStimulationTime(+text)} value = {String(stimulationTime)} />
               </View>
               <View style = {styles.settingDivs}>
-              <Text style={styles.SettingText}>Current rest time(ms):</Text>
+              <Text style={styles.settingText}>Current rest time(ms):</Text>
               <TextInput style = {styles.settingInput} keyboardType = 'numeric' onChangeText = {text => setRestTime(+text)} value = {String(restTime)} />
               </View>
               <View style = {styles.settingDivs}>
-              <Text style={styles.SettingText}>Current stimulation strength(%):</Text>
+              <Text style={styles.settingText}>Current stimulation strength(%):</Text>
               <TextInput style = {styles.settingInput} keyboardType = 'numeric' maxLength = {3} onChangeText = {text => changeSimulationStrength(+text)} value = {String(stimulationStrength)} />
               </View>
             </View>
-            <TouchableOpacity style = {styles.ctaButton} disabled = {exerciseState} onPress = {() => sendData(connectedDevice, base64.encode(createSettingsString(initialDelay, stimulationTime, restTime, stimulationStrength)))}>
-            <Text style = {styles.ctaButtonText}>
+            <TouchableOpacity style = {styles.buttonStyle} disabled = {exerciseState} onPress = {() => sendData(connectedDevice, base64.encode(createSettingsString(initialDelay, stimulationTime, restTime, stimulationStrength)))}>
+            <Text style = {styles.buttonText}>
               {'Update Setings'}
             </Text>
             </TouchableOpacity>
-            <Text style = {styles.heartRateTitleText}>
+            <Text style = {styles.titleText}>
               {exerciseState? 'Please set total time while exercise is not running' : 'Set exercise time'}
             </Text>
             <TextInput style = {styles.input} keyboardType = 'numeric' editable = {!exerciseState} onChangeText = {text => setTotalTime(+text)} value = {String(totalTime)} />
-            <TouchableOpacity disabled = {exerciseState} onPress = {() => setKey(prevKey => prevKey + 1)} style = {styles.ctaButton}>
-            <Text style = {styles.ctaButtonText}>
+            <TouchableOpacity disabled = {exerciseState} onPress = {() => setKey(prevKey => prevKey + 1)} style = {styles.buttonStyle}>
+            <Text style = {styles.buttonText}>
               {exerciseState? 'Pause exercise to reset timer' : 'Reset timer'}
             </Text>
             </TouchableOpacity>
-            <Text style={styles.heartRateTitleText}>Walking Exercise Timer</Text>
+            <Text style={styles.titleText}>Walking Exercise Timer</Text>
             <CountdownCircleTimer isPlaying={exerciseState} colors={['#004777', '#F7B801', '#A30000', '#A30000']} colorsTime = {[60, 45, 30, 15]} key = {key} duration = {totalTime} onComplete = {() => {handleExercise(); setKey(prevKey => prevKey + 1)}}>
             {({ remainingTime }) => <Text>{remainingTime} seconds</Text>}
             </CountdownCircleTimer>
-            <TouchableOpacity onPress = {handleExercise} style = {styles.ctaButton}>
-            <Text style = {styles.ctaButtonText}>
+            <TouchableOpacity onPress = {handleExercise} style = {styles.buttonStyle}>
+            <Text style = {styles.buttonText}>
               {exerciseState? 'Pause Exercise' : 'Start Exercise'}
             </Text>
             </TouchableOpacity>
           </>
         ) : (
-          <Text style={styles.heartRateTitleText}>
+          <Text style={styles.titleText}>
             Please Connect to a bluetooth device
           </Text>
         )}
       </View>
       <TouchableOpacity
         onPress={connectedDevice ? disconnectFromDevice : openModal}
-        style={styles.ctaButton}>
-        <Text style={styles.ctaButtonText}>
+        style={styles.buttonStyle}>
+        <Text style={styles.buttonText}>
           {connectedDevice ? 'Disconnect' : 'Connect to bluetooth device'}
         </Text>
       </TouchableOpacity>
@@ -181,12 +192,12 @@ const styles = StyleSheet.create({
     backgroundColor: '#f2f2f2',
     paddingTop: StatusBar.currentHeight,
   },
-  heartRateTitleWrapper: {
+  appWrapper: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  heartRateTitleText: {
+  titleText: {
     fontSize: 30,
     fontWeight: 'bold',
     textAlign: 'center',
@@ -194,12 +205,12 @@ const styles = StyleSheet.create({
     marginVertical: 20,
     color: 'black',
   },
-  SettingText: {
+  settingText: {
     fontSize: 14,
     marginTop: 15,
     marginLeft: 15
   },
-  ctaButton: {
+  buttonStyle: {
     backgroundColor: 'powderblue',
     justifyContent: 'center',
     alignItems: 'center',
@@ -209,7 +220,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     padding: 15
   },
-  ctaButtonText: {
+  buttonText: {
     fontSize: 18,
     fontWeight: 'bold',
     color: 'black',

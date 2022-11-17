@@ -1,3 +1,4 @@
+/*Modal class to assist with rendering the connectable bluetooth devices*/
 import React, {FC, useCallback} from 'react';
 import {
   FlatList,
@@ -34,8 +35,8 @@ const DeviceModalListItem: FC<DeviceModalListItemProps> = props => {
   return (
     <TouchableOpacity
       onPress={connectAndCloseModal}
-      style={modalStyle.ctaButton}>
-      <Text style={modalStyle.ctaButtonText}>{item.item.name}</Text>
+      style={modalStyle.buttonStyle}>
+      <Text style={modalStyle.buttonText}>{item.item.name}</Text>
     </TouchableOpacity>
   );
 };
@@ -104,7 +105,7 @@ const modalStyle = StyleSheet.create({
     marginHorizontal: 20,
     textAlign: 'center',
   },
-  ctaButton: {
+  buttonStyle: {
     backgroundColor: 'powderblue',
     justifyContent: 'center',
     alignItems: 'center',
@@ -113,7 +114,7 @@ const modalStyle = StyleSheet.create({
     marginBottom: 5,
     borderRadius: 8,
   },
-  ctaButtonText: {
+  buttonText: {
     fontSize: 18,
     fontWeight: 'bold',
     color: 'white',

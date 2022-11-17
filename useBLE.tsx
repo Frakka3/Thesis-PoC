@@ -1,3 +1,4 @@
+/** Helper class to assist with all Bluetooth connection and functionality*/
 import { Dispatch, SetStateAction, useState } from "react";
 import { PermissionsAndroid, Platform } from "react-native"
 import base64 from "react-native-base64";
@@ -7,6 +8,7 @@ type PermissionCallback = (result:boolean) => void
 
 const bleManager = new BleManager();
 
+//Constants for service IDs - Can be changed depending on hardware device
 const MICROCONTROLLER_UUID = '6E400001-B5A3-F393-E0A9-E50E24DCCA9E';
 const MICROCONTROLLER_RX = '6E400002-B5A3-F393-E0A9-E50E24DCCA9E';
 const MICROCONTROLLER_TX = '6E400003-B5A3-F393-E0A9-E50E24DCCA9E'; 
@@ -37,6 +39,7 @@ export default function useBLE(): BluetoothLowEnergyApi {
   const [restTime, setRestTime] = useState<number>(750);
   const [stimulationStrength, setStimulationStrength] = useState<number>(100);
 
+  //Permissions must be requested to enable bluetooth connection
   const requestPermissions = async(callback: PermissionCallback) => {
     if (Platform.OS === 'android') {
       const grantedStatus = await PermissionsAndroid.request(
@@ -54,9 +57,11 @@ export default function useBLE(): BluetoothLowEnergyApi {
     }
   };
   
+  //Helper function to check if bluetooth device has already been discovered
   const isDuplicate = (devices:Device[], nextDevice: Device) => 
     devices.findIndex(device => nextDevice.id === device.id) > -1;
   
+  //Helper function scan for nearby bluetooth devices
   const scanForDevices = () => {
     bleManager.startDeviceScan(null, null, (error, device) => {
       if (error) {
@@ -73,6 +78,7 @@ export default function useBLE(): BluetoothLowEnergyApi {
     })
   }
   
+  //Helper function to connect to a discovered bluetooth device
   const connectToDevice = async(device:Device) => {
     try {
       const deviceConnection = await bleManager.connectToDevice(device.id);
@@ -85,6 +91,7 @@ export default function useBLE(): BluetoothLowEnergyApi {
     }
   };
   
+  //Helper function to disconnect the currently connected device
   const disconnectFromDevice = () => {
     if (connectedDevice) {
       bleManager.cancelDeviceConnection(connectedDevice.id);
@@ -92,6 +99,7 @@ export default function useBLE(): BluetoothLowEnergyApi {
     }
   };
   
+  //Helper function that adds a listener to a service - collects all data sent by bluetooth device
   const streamData = async(device:Device) => {
     if (device) {
       device.monitorCharacteristicForService(MICROCONTROLLER_UUID, MICROCONTROLLER_TX, (error, characteristic) => onDataUpdate(error, characteristic),);
@@ -100,6 +108,7 @@ export default function useBLE(): BluetoothLowEnergyApi {
     }
   };
   
+  //Helper function to send data to the connected bluetooth device
   const sendData = async(device:Device, message: Base64) => {
     if (device) {
       device.writeCharacteristicWithoutResponseForService(MICROCONTROLLER_UUID, MICROCONTROLLER_RX, message)
@@ -108,6 +117,7 @@ export default function useBLE(): BluetoothLowEnergyApi {
     }
   }
   
+  //Helper function which extracts required data from sent settings string and updates exercise setting values accordingly 
   const onDataUpdate = (
   error: BleError | null, 
   characteristic: Characteristic | null
