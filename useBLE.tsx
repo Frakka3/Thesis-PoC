@@ -134,8 +134,8 @@ export default function useBLE(): BluetoothLowEnergyApi {
       console.log('Bad request received ' + ret);
       return -1;
     } 
-    ret = ret.slice(0, -1);
-    var values = ret.split(' ');
+    var sliced_ret = ret.slice(0, -1);
+    var values = sliced_ret.split(' ');
     if (values.length != 4) {
       console.log('Request missing values ' + ret);
       return -1;
