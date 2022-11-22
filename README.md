@@ -14,4 +14,4 @@
 
     pod install
     
-5. Open the project in Xcode and run on the selected device
+5. Open the project in Xcode to build and run on the select device. You may need to add the 'tick.mp3' sound file under "Build phases" > "Copy bundle resources"
